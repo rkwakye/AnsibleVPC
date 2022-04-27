@@ -20,6 +20,7 @@
     state: 'present'
     zone: 'us-east-1a'
     region: 'us-east-1'
+    key_name: 'ghDevs2Key'
   tasks:
   - name: create a new VPC
     #create a vpc with name, cidr block,dns support, and tenancy
@@ -162,6 +163,28 @@
     # print out new subnet id and security group
     debug:
       msg: "To use the new created VPC: {{ vpc_name }}; Use subnet id: {{ subnet1A_result.subnet.id }} and security group: {{ security_group_results.group_id }} to create your AWS instances "
+
+# Create EC2 instance
+  - name: Provision instance (s)
+    ec2:
+          key_name: "{{ key_name }}"
+          #id: "{{ id }}"
+          #group_id: "{{ security_group_name }}"
+          image: "ami-0e472ba40eb589f49"
+          instance_type: t2.micro
+          region: "{{ region }}"
+          wait: true
+          count: 2
+          vpc_subnet_id: "{{ subnet1A_result.subnet.id }}"
+          assign_public_ip: yes
+          # exact_count: 2
+          # count_tag:
+          #   Name: App
+          # instance_tags:
+          #   Name: App
+          # group_id: "{{ result_sec_group.group_id }}"
+
+
 
  # Create Basic Launch Configuration
   # - name: Create ec2 Launch Configuration
