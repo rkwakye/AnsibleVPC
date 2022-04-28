@@ -171,6 +171,7 @@
           #id: "{{ id }}"
           #group_id: "{{ security_group_name }}"
           image: "ami-0e472ba40eb589f49"
+          id: Ansible1
           instance_type: t2.micro
           region: "{{ region }}"
           wait: true
@@ -187,48 +188,76 @@
 
 
  # Create Basic Launch Configuration
-  # - name: Create ec2 Launch Configuration
-  #   ec2_lc:
-  #     name: "AnsibleWordPress"
-  #     image_id: ami-0e472ba40eb589f49 
-  #     instance_type: t2.micro
-  #     security_groups: "{{ security_group_name }}"
-  #     region: "{{ region }}"
+  - name: Create ec2 Launch Configuration
+    ec2_lc:
+      name: "AnsibleLaunchConfig"
+      image_id: ami-0e472ba40eb589f49 
+      instance_type: t2.micro
+      security_groups: "{{ security_group_name }}"
+      region: "{{ region }}"
 
 
- # Basic Load Balancer
-  # - name: Create the ELB only listening over port 80
-  #   ec2_elb_lb:
-  #     name: AnsibleLoadBalancer
+# Load Balancer
+# https://www.bogotobogo.com/DevOps/Ansible/Ansible-aws-creating-elb-and-register-ec2-instance.php
+  - name: setup a simple load balancer
+    ec2_elb_lb:
+      name: aws-elb-demo
+      state: present
+      region: us-east-1
+      zones:
+        - us-east-1a
+        - us-east-1b
+      cross_az_load_balancing: yes  
+      listeners:
+        - protocol: http
+          load_balancer_port: 80
+          instance_port: 80
+    register: aws_elb_demo
+
+  # - name: add the webservers to the load balancer
+  #   local_action: ec2_elb
+  #   args:
+  #     instance_id: i-0f99c6ef43b35aef5
+  #     ec2_elbs: aws-elb-demo
   #     state: present
   #     region: us-east-1
-  #     subnets: "{{ subnet_name }}Public1A, {{ subnet_name }}Public1B"
-  #     cross_az_load_balancing: yes
-  #     zones:
-  #       - us-east-1a
-  #       - us-east-1b
-  #     scheme: internet-facing  
-  #     health_check:
-  #       ping_protocol: http
-  #       ping_port: 80
-  #       ping_path: "index.html"
-  #       response_timeout: 5
-  #       interval: 30
-  #       unhealthy_threshold: 2
-  #       healthy_threshold: 2
-  #     tags: 
-  #       name: AnsibleLB
-  #       security_group_names: "{{ security_group_name }}"
-  #     listeners:
-  #       - protocol: http
-  #         load_balancer_port: 80
-  #         instance_port: 80
-  #         proxy_protocol: True
-  #       - protocol: https
-  #         load_balancer_port: 443
-  #         instance_protocol: http
-  #         instance_port: 80 
-  #   register: elb
+  #   with_items: ec2.tagged_instances
+
+
+
+#  # Basic Load Balancer
+#   - name: Create the ELB only listening over port 80
+#     ec2_elb_lb:
+#       name: AnsibleLoadBalancer
+#       state: present
+#       region: us-east-1
+#       # subnets: "{{ subnet_name }}Public1A"
+#       cross_az_load_balancing: yes
+#       zones: us-east-1a
+#       #   - us-east-1a
+#       #   - us-east-1b
+#       #scheme: internet-facing  
+#       health_check:
+#         ping_protocol: http
+#         ping_port: 80
+#         ping_path: "index.html"
+#         response_timeout: 5
+#         interval: 30
+#         unhealthy_threshold: 2
+#         healthy_threshold: 2
+#       tags: 
+#         name: AnsibleLB
+#         security_group_names: "{{ security_group_name }}"
+#       listeners:
+#         - protocol: http
+#           load_balancer_port: 80
+#           instance_port: 80
+#           # proxy_protocol: True
+#         # - protocol: https
+#         #   load_balancer_port: 443
+#         #   instance_protocol: http
+#         #   instance_port: 80 
+#     register: elb
 
 
  # Create Autoscaling group AnsibleASG
