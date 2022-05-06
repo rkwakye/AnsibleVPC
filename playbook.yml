@@ -7,7 +7,6 @@
   gather_facts: False  # don't gather facts against localhost
   vars:
     vpc_title: 'Ansible'
-    id: "AnsibleID1" 
     vpc_name: "{{ vpc_title }} VPC"
     igw_name: "{{ vpc_title }} IGW"
     subnet_name: "{{ vpc_title }} Subnet"
@@ -21,7 +20,7 @@
     state: 'present'
     zone: 'us-east-1a'
     region: 'us-east-1'
-    key_name: 'ghDevs2Key'
+
   tasks:
   - name: create a new VPC
     #create a vpc with name, cidr block,dns support, and tenancy
@@ -36,6 +35,7 @@
       tenancy: default
       state: "{{ state }}"
     register: ec2_vpc_net_result
+
   - name: create ec2 vpc internet gateway       
     # create an internet gateway for the vpc
     ec2_vpc_igw:
@@ -45,6 +45,7 @@
       tags:
         Name: "{{ igw_name }}"
     register: igw_result
+    
   - name: create vpc subnet Public 1A
     # create the subnet for the vpc with a cidr block
     ec2_vpc_subnet:
@@ -52,12 +53,14 @@
       region: "{{ region }}"
       az: "{{ zone }}"      # az is the availability zone
       state: "{{ state }}"
+      # DefaultForAz: true, 
       cidr: "10.0.0.0/24"
       # enable public ip
       map_public: yes
       resource_tags:
         Name: "{{ subnet_name }}Public1A"
     register: subnet1A_result
+
   - name: create vpc subnet Public 1B
     # create the subnet for the vpc with a cidr block
     ec2_vpc_subnet:
@@ -71,6 +74,7 @@
       resource_tags:
         Name: "{{ subnet_name }}Public1B"
     register: subnet1B_result
+
   - name: create vpc subnet Private 1a
     # create the subnet for the vpc with a cidr block
     ec2_vpc_subnet:
@@ -80,16 +84,17 @@
       state: "{{ state }}"
       cidr: "10.0.2.0/24"
       # enable public ip
-      map_public: yes
+      map_public: no
       resource_tags:
         Name: "{{ subnet_name }}Private1A"
     register: subnet1APrivate_result 
+
   - name: create vpc subnet Private 1b
     # create the subnet for the vpc with a cidr block
     ec2_vpc_subnet:
       vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
       region: "{{ region }}"
-      az: "{{ zone }}"      # az is the availability zone
+      az: "us-east-1b"      # az is the availability zone
       state: "{{ state }}"
       cidr: "10.0.3.0/24"
       # enable public ip
@@ -97,6 +102,7 @@
       resource_tags:
         Name: "{{ subnet_name }}Private1B"
     register: subnet1BPrivate_result
+
   - name: create ec2 security group 
     # create a security group for the vpc
     ec2_group:
@@ -111,9 +117,12 @@
       - proto: tcp
         ports:
         - 22
+        - 80
+        - 81
         cidr_ip: "{{ port22CidrBlock }}"
-        rule_desc: allow all on port 22
+        rule_desc: allow all on ports 22, 80 and 81
     register: security_group_results
+
   - name: create ec2 VPC Network access control list
     # create the access control list with ingress and egress ports 
     ec2_vpc_nacl:
@@ -146,6 +155,7 @@
         # allow egress ephemeral ports
         - [300, 'tcp', 'allow', "{{ destinationCidrBlock }}", null, null, 1024, 65535]
     register: acl_results
+
   - name: create ec2 VPC public subnet route table
     # create route table and connect subnet to routes
     ec2_vpc_route_table:
@@ -154,174 +164,149 @@
       state: "{{ state }}"
       tags:
         Name: "{{ route_table_name }}"
-      subnets: [ "{{ subnet1A_result.subnet.id }}" ]   
+      subnets: [ "{{ subnet1A_result.subnet.id }}","{{ subnet1B_result.subnet.id }}"  ]   
       # create routes
       routes:
         - dest: "{{ destinationCidrBlock }}" 
           gateway_id: "{{ igw_result.gateway_id }}"
     register: public_route_table
+    
   - name: print out new vpc, subnet id, and security group for vpc
     # print out new subnet id and security group
     debug:
       msg: "To use the new created VPC: {{ vpc_name }}; Use subnet id: {{ subnet1A_result.subnet.id }} and security group: {{ security_group_results.group_id }} to create your AWS instances "
 
-# # Create EC2 instance
-#   - name: Provision instance (s)
-#     ec2:
-#           key_name: "{{ key_name }}"
-#           # id: "{{ id }}"
-#           #group_id: "{{ security_group_name }}"
-#           image: "ami-0e472ba40eb589f49"
-#           # id: Ansible1
-#           instance_type: t2.micro
-#           region: "{{ region }}"
-#           wait: true
-#           count: 2
-#           vpc_subnet_id: "{{ subnet1A_result.subnet.id }}"
-#           assign_public_ip: yes
-#           # exact_count: 2
-#           # count_tag:
-#           #   Name: App
-#           instance_tags:
-#             Name: WordPress
-#           # group_id: "{{ result_sec_group.group_id }}"
 
 
 
-#  # Create Basic Launch Configuration
-#   - name: Create ec2 Launch Configuration
-#     ec2_lc:
-#       name: "AnsibleLaunchConfig"
-#       image_id: ami-0e472ba40eb589f49 
-#       instance_type: t2.micro
-#       security_groups: "{{ security_group_name }}"
-#       region: "{{ region }}"
+# Create EC2 instance in Public1A subnet
+# assign Ansible Security Group
+
+  # - name: Provision instance (s)
+  #   ec2:
+  #         image: "ami-0e472ba40eb589f49"
+  #         # id: Ansible1
+  #         instance_type: t2.micro
+  #         group_id: sg-060557f4bb6d83d36
+  #         region: "{{ region }}"
+  #         wait: true
+  #         count: 1
+  #         vpc_subnet_id: "{{ subnet1A_result.subnet.id }}"
+  #         assign_public_ip: yes
+  #         instance_tags:
+  #           Name: AnsibleEC2Public1A
+  #         # group_id: "{{ result_sec_group.group_id }}"
+  #   register: ec2_instances
+    
+    
+    # debug:
+    # msg: "EC2 Public 1A id is: {{ ec2_instances.instance_id }} "
 
 
-# Create Basic Launch Template
-  - name: Create an ec2 launch template
-    ec2_launch_template:
-     name: "Ansible_LaunchTemplate"
-     image_id: ami-0e472ba40eb589f49 
-     key_name: "{{ key_name }}"
-     instance_type: t2.micro
-    #  iam_instance_profile: remoteAccess1
-     disable_api_termination: true     
 
-# # Launch instance from template
-#   - name: launch new instance from template
-#     ec2_instance:
-#      name: ansibleEC2
-#      launch_template: 
-#      name: amazonlinux2_httpd_template
-#      security_group: "{{ security_group_name }}"
-#     vpc_subnet_id: "{{ subnet1A_result.subnet.id }}" 
-#     tags:
-#         - Ansible_ec2_template
 
- # Create a target group for load balancer
+  # Create ec2 in public 1B
+  # assign Ansible Security Group
+
+  # - name: Provision instance (s)
+  #   ec2:
+  #         image: "ami-0e472ba40eb589f49"
+  #         instance_type: t2.micro
+  #         group_id: sg-060557f4bb6d83d36
+  #         region: "{{ region }}"
+  #         wait: true
+  #         count: 1
+  #         vpc_subnet_id: "{{ subnet1B_result.subnet.id }}"
+  #         assign_public_ip: yes
+  #         instance_tags:
+  #           Name: AnsibleEC2Public1B
+  #   register: ec2_instances
+
+
+
+  # Get info for 2 instance ID's to use in TargetGroup
+  # Assign ID's to instances
+  # attach them to target group
+
+
   - name: Create a target group with instance targets
     elb_target_group:
-      name: AnsibleTargetgroup
+      name: AnsibleTargetGroup
       protocol: http
-      port: 81
+      port: 80
       vpc_id: "{{ ec2_vpc_net_result.vpc.id }}"
       health_check_protocol: http
       health_check_path: /
       successful_response_codes: "200,250-260"
       targets:
-        # - Id: i-0cf8a3b3482956a62
-        - Id: i-0cf8a3b3482956a62 
-        # consider using Register value like with subnets
+        - Id: i-06c38c7dfbe32aca1
           Port: 80
-        - Id: i-048ddf300564af51b
+        - Id: i-03781826c0b505930
           Port: 80
       state: present
       wait_timeout: 200
       wait: True
-      # Need security group for load balancer
 
 
-
-
-
-
-
-
-# # Load Balancer
-# # https://www.bogotobogo.com/DevOps/Ansible/Ansible-aws-creating-elb-and-register-ec2-instance.php
-  - name: setup a simple load balancer
-    ec2_elb_lb: 
-      name: AnsibleLoadBalancer
-      state: present
-      region: us-east-1
-      zones:
-        # - us-east-1a
-        - us-east-1b
-      cross_az_load_balancing: yes  
-      # subnets:
-      #   - "{{ subnet1A_result.subnet.id }}"  
-      #   - "{{ subnet1B_result.subnet.id }}"
-        # - subnet-abcdef000
+# Create an ELB and attach a listener
+  - name: Create the ELB only listening over port 80
+    elb_application_lb:
+      name: AnsibleALB
       security_groups:
         - "{{ security_group_name }}"
+        # - my-sec-group
+      subnets:
+        - subnet-08023a6b472affed8
+        - subnet-0c48347107195c11c
       listeners:
-        - protocol: http
-          load_balancer_port: 80
-          instance_port: 80
+        - Protocol: HTTP # Required. The protocol for connections from clients to the load balancer (HTTP or HTTPS) (case-sensitive).
+          Port: 80 # Required. The port on which the load balancer is listening.
+          # The security policy that defines which ciphers and protocols are supported. The default is the current predefined security policy.
+          # SslPolicy: ELBSecurityPolicy-2015-05
+          # Certificates: # The ARN of the certificate (only one certficate ARN should be provided)
+          #   - CertificateArn: arn:aws:iam::12345678987:server-certificate/test.domain.com
           DefaultActions:
-          - Type: forward # Required. Only 'forward' is accepted at this time
-            TargetGroupName: AnsibleTargetGroup # Required. The name of the target group
-    register: aws_elb_demo
+            - Type: forward # Required. Only 'forward' is accepted at this time
+              TargetGroupName: AnsibleTargetGroup # Required. The name of the target group
+      state: present
 
-  
-    # security group for load balancer
-
-
-
-
-
-# # https://docs.w3cub.com/ansible~2.9/modules/elb_network_lb_module
-# # Create an ELB and attach a listener
-# - elb_network_lb:
-#     name: myelb
-#     subnets:
-#       - subnet-012345678
-#       - subnet-abcdef000
-#     listeners:
-#       - Protocol: TCP # Required. The protocol for connections from clients to the load balancer (TCP or TLS) (case-sensitive).
-#         Port: 80 # Required. The port on which the load balancer is listening.
-#         DefaultActions:
-#           - Type: forward # Required. Only 'forward' is accepted at this time
-#             TargetGroupName: AnsibleTargetGroup # Required. The name of the target group
-#     state: present
-
-
-
-
-  # - name: add the webservers to the load balancer
-  #   local_action: ec2_elb
-  #   args:
-  #     instance_id: i-0f99c6ef43b35aef5
-  #     ec2_elbs: aws-elb-demo
-  #     state: present
+ # Create Autoscaling group AnsibleASG
+  # - name: Create Ansible Auto Scaling Group
+  #   ec2_asg:
+  #     name: AnsibleASG
+  #     launch_config_name: AnsibleWordPress
+  #     health_check_period: 60
+  #     health_check_type: ELB
+  #     replace_all_instances: yes
+  #     min_size: 2
+  #     max_size: 2
+  #     desired_capacity: 2
   #     region: us-east-1
-  #   with_items: ec2.tagged_instances
+
+   # Create Basic Launch Configuration
+  # - name: Create ec2 Launch Configuration
+  #   ec2_lc:
+  #     name: "AnsibleWordPress"
+  #     image_id: ami-0e472ba40eb589f49 
+  #     instance_type: t2.micro
+  #     security_groups: "{{ security_group_name }}"
+  #     region: "{{ region }}"
 
 
 
 #  # Basic Load Balancer
 #   - name: Create the ELB only listening over port 80
 #     ec2_elb_lb:
+#     # elb_classic_lb:
 #       name: AnsibleLoadBalancer
 #       state: present
 #       region: us-east-1
-#       # subnets: "{{ subnet_name }}Public1A"
+#       # subnets: "{{ subnet_name }}Public1A, {{ subnet_name }}Public1B"
 #       cross_az_load_balancing: yes
-#       zones: us-east-1a
-#       #   - us-east-1a
-#       #   - us-east-1b
-#       #scheme: internet-facing  
+#       zones:
+#         # - us-east-1a
+#         - us-east-1b
+#       scheme: internet-facing  
 #       health_check:
 #         ping_protocol: http
 #         ping_port: 80
@@ -337,23 +322,13 @@
 #         - protocol: http
 #           load_balancer_port: 80
 #           instance_port: 80
-#           # proxy_protocol: True
+#         #   proxy_protocol: True
 #         # - protocol: https
 #         #   load_balancer_port: 443
 #         #   instance_protocol: http
 #         #   instance_port: 80 
-#     register: elb
-
-
- # Create Autoscaling group AnsibleASG
-  # - name: Create Ansible Auto Scaling Group
-  #   ec2_asg:
-  #     name: AnsibleASG
-  #     launch_config_name: AnsibleWordPress
-  #     health_check_period: 60
-  #     health_check_type: ELB
-  #     replace_all_instances: yes
-  #     min_size: 2
-  #     max_size: 2
-  #     desired_capacity: 2
-  #     region: us-east-1
+#     # register: elb
+#         - DefaultActions:
+#           - Type: forward # Required. Only 'forward' is accepted at this time
+#             TargetGroupName: AnsibleTargetGroup # Required. The name of the target group
+#       state: present
